@@ -1,0 +1,160 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Irodori-TTS 聴き比べ</title>
+<style>
+:root{--bg:#fff;--fg:#17171a;--mut:#6b6b73;--line:#e4e4e8;--card:#f7f7f9;--acc:#2f6df6;--accfg:#fff}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121214;--fg:#ececf0;--mut:#9b9ba3;--line:#2b2b31;--card:#1b1b1f;--acc:#6f9bff;--accfg:#10131c}}
+:root[data-theme="dark"]{--bg:#121214;--fg:#ececf0;--mut:#9b9ba3;--line:#2b2b31;--card:#1b1b1f;--acc:#6f9bff;--accfg:#10131c}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);margin:0;padding:28px 16px 64px;line-height:1.6;
+ font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
+.wrap{max-width:900px;margin:0 auto}
+h1{font-size:1.4rem;margin:0 0 .3rem}
+.sub{color:var(--mut);font-size:.88rem;margin-bottom:2rem}
+section{margin-bottom:2.5rem;border-top:1px solid var(--line);padding-top:1.2rem}
+h2{font-size:1rem;margin:0 0 .5rem;color:var(--mut);font-weight:600}
+.txt{background:var(--card);padding:10px 13px;border-radius:9px;font-size:.93rem;margin:0 0 .9rem}
+audio{width:100%;height:38px;display:block;margin-bottom:.7rem}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;font-size:.8rem;padding:5px 11px;border-radius:999px;cursor:pointer;
+ border:1px solid var(--line);background:var(--card);color:var(--fg);font-variant-numeric:tabular-nums}
+button:hover{border-color:var(--acc)}
+button[aria-pressed="true"]{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
+button .t{opacity:.65;margin-left:6px}
+.hint{color:var(--mut);font-size:.8rem;margin-top:.6rem}
+kbd{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:.78rem}
+@media(max-width:560px){audio{height:34px}}
+</style></head><body><div class='wrap'>
+<h1>Irodori-TTS v4 聴き比べ</h1>
+<p class='sub'>RTX 5090 / RF 40 steps / seed 0 / リファレンス音声なし。括弧内は生成時間。ボタンで再生位置を保ったままモデルを切り替えられる。</p>
+<section data-text='t1_short'><h2>t1_short</h2>
+<p class='txt'>こんにちは、今日はいい天気ですね。</p>
+<audio controls preload='metadata' src='outputs/t1_short/small-v4.1-bf16.wav'></audio>
+<div class='btns'>
+<button data-src='outputs/t1_short/small-v4.1-bf16.wav' aria-pressed='true'>1. small-v4.1-bf16<span class='t'>0.26s</span></button>
+<button data-src='outputs/t1_short/small-v4.1-fp32.wav' aria-pressed='false'>2. small-v4.1-fp32<span class='t'>0.34s</span></button>
+<button data-src='outputs/t1_short/large-bf16.wav' aria-pressed='false'>3. large-bf16<span class='t'>0.54s</span></button>
+<button data-src='outputs/t1_short/large-fp32.wav' aria-pressed='false'>4. large-fp32<span class='t'>0.96s</span></button>
+<button data-src='outputs/t1_short/large-int8wo.wav' aria-pressed='false'>5. large-int8wo<span class='t'>0.67s</span></button>
+<button data-src='outputs/t1_short/large-int8dyn.wav' aria-pressed='false'>6. large-int8dyn<span class='t'>5.46s</span></button>
+<button data-src='outputs/t1_short/large-int4wo.wav' aria-pressed='false'>7. large-int4wo<span class='t'>0.97s</span></button>
+<button data-src='outputs/t1_short/large-fp8wo.wav' aria-pressed='false'>8. large-fp8wo<span class='t'>0.89s</span></button>
+<button data-src='outputs/t1_short/large-fp8dyn.wav' aria-pressed='false'>9. large-fp8dyn<span class='t'>1.89s</span></button>
+<button data-src='outputs/t1_short/small-mf-bf16.wav' aria-pressed='false'>10. small-mf-bf16<span class='t'>0.06s</span></button>
+<button data-src='outputs/t1_short/small-mf-fp32.wav' aria-pressed='false'>11. small-mf-fp32<span class='t'>0.08s</span></button>
+</div>
+<p class='hint'>このブロックをクリックしてから <kbd>1</kbd>〜<kbd>9</kbd> でも切り替え可</p>
+</section>
+<section data-text='t2_medium'><h2>t2_medium</h2>
+<p class='txt'>音声合成モデルの比較検証を行っています。同じ文章を複数のモデルで読み上げて、速度と音質を確認します。</p>
+<audio controls preload='metadata' src='outputs/t2_medium/small-v4.1-bf16.wav'></audio>
+<div class='btns'>
+<button data-src='outputs/t2_medium/small-v4.1-bf16.wav' aria-pressed='true'>1. small-v4.1-bf16<span class='t'>0.29s</span></button>
+<button data-src='outputs/t2_medium/small-v4.1-fp32.wav' aria-pressed='false'>2. small-v4.1-fp32<span class='t'>0.51s</span></button>
+<button data-src='outputs/t2_medium/large-bf16.wav' aria-pressed='false'>3. large-bf16<span class='t'>0.69s</span></button>
+<button data-src='outputs/t2_medium/large-fp32.wav' aria-pressed='false'>4. large-fp32<span class='t'>1.43s</span></button>
+<button data-src='outputs/t2_medium/large-int8wo.wav' aria-pressed='false'>5. large-int8wo<span class='t'>0.85s</span></button>
+<button data-src='outputs/t2_medium/large-int8dyn.wav' aria-pressed='false'>6. large-int8dyn<span class='t'>5.50s</span></button>
+<button data-src='outputs/t2_medium/large-int4wo.wav' aria-pressed='false'>7. large-int4wo<span class='t'>1.78s</span></button>
+<button data-src='outputs/t2_medium/large-fp8wo.wav' aria-pressed='false'>8. large-fp8wo<span class='t'>1.11s</span></button>
+<button data-src='outputs/t2_medium/large-fp8dyn.wav' aria-pressed='false'>9. large-fp8dyn<span class='t'>1.93s</span></button>
+<button data-src='outputs/t2_medium/small-mf-bf16.wav' aria-pressed='false'>10. small-mf-bf16<span class='t'>0.09s</span></button>
+<button data-src='outputs/t2_medium/small-mf-fp32.wav' aria-pressed='false'>11. small-mf-fp32<span class='t'>0.12s</span></button>
+</div>
+<p class='hint'>このブロックをクリックしてから <kbd>1</kbd>〜<kbd>9</kbd> でも切り替え可</p>
+</section>
+<section data-text='t3_long'><h2>t3_long</h2>
+<p class='txt'>近年、深層学習にもとづく音声合成技術は急速に発展しており、人間の発話と区別がつかないほど自然な音声を生成できるようになりました。一方で、計算資源の制約から、実際のサービスに組み込む際には推論速度とのバランスを慎重に検討する必要があります。本検証では、同一の文章を用いて複数のモデルの速度と音質を比較します。</p>
+<audio controls preload='metadata' src='outputs/t3_long/small-v4.1-bf16.wav'></audio>
+<div class='btns'>
+<button data-src='outputs/t3_long/small-v4.1-bf16.wav' aria-pressed='true'>1. small-v4.1-bf16<span class='t'>0.45s</span></button>
+<button data-src='outputs/t3_long/small-v4.1-fp32.wav' aria-pressed='false'>2. small-v4.1-fp32<span class='t'>0.92s</span></button>
+<button data-src='outputs/t3_long/large-bf16.wav' aria-pressed='false'>3. large-bf16<span class='t'>1.46s</span></button>
+<button data-src='outputs/t3_long/large-fp32.wav' aria-pressed='false'>4. large-fp32<span class='t'>3.04s</span></button>
+<button data-src='outputs/t3_long/large-int8wo.wav' aria-pressed='false'>5. large-int8wo<span class='t'>1.65s</span></button>
+<button data-src='outputs/t3_long/large-int8dyn.wav' aria-pressed='false'>6. large-int8dyn<span class='t'>5.81s</span></button>
+<button data-src='outputs/t3_long/large-int4wo.wav' aria-pressed='false'>7. large-int4wo<span class='t'>4.36s</span></button>
+<button data-src='outputs/t3_long/large-fp8wo.wav' aria-pressed='false'>8. large-fp8wo<span class='t'>1.88s</span></button>
+<button data-src='outputs/t3_long/large-fp8dyn.wav' aria-pressed='false'>9. large-fp8dyn<span class='t'>2.01s</span></button>
+<button data-src='outputs/t3_long/small-mf-bf16.wav' aria-pressed='false'>10. small-mf-bf16<span class='t'>0.18s</span></button>
+<button data-src='outputs/t3_long/small-mf-fp32.wav' aria-pressed='false'>11. small-mf-fp32<span class='t'>0.23s</span></button>
+</div>
+<p class='hint'>このブロックをクリックしてから <kbd>1</kbd>〜<kbd>9</kbd> でも切り替え可</p>
+</section>
+<section data-text='t4_numeric'><h2>t4_numeric</h2>
+<p class='txt'>二千二十六年十月四日の売上は、前年同月比で百二十三パーセント、金額にして四億五千万円でした。担当はNTTデータの山田太郎さんです。</p>
+<audio controls preload='metadata' src='outputs/t4_numeric/small-v4.1-bf16.wav'></audio>
+<div class='btns'>
+<button data-src='outputs/t4_numeric/small-v4.1-bf16.wav' aria-pressed='true'>1. small-v4.1-bf16<span class='t'>0.32s</span></button>
+<button data-src='outputs/t4_numeric/small-v4.1-fp32.wav' aria-pressed='false'>2. small-v4.1-fp32<span class='t'>0.62s</span></button>
+<button data-src='outputs/t4_numeric/large-bf16.wav' aria-pressed='false'>3. large-bf16<span class='t'>0.89s</span></button>
+<button data-src='outputs/t4_numeric/large-fp32.wav' aria-pressed='false'>4. large-fp32<span class='t'>1.82s</span></button>
+<button data-src='outputs/t4_numeric/large-int8wo.wav' aria-pressed='false'>5. large-int8wo<span class='t'>1.05s</span></button>
+<button data-src='outputs/t4_numeric/large-int8dyn.wav' aria-pressed='false'>6. large-int8dyn<span class='t'>5.56s</span></button>
+<button data-src='outputs/t4_numeric/large-int4wo.wav' aria-pressed='false'>7. large-int4wo<span class='t'>2.44s</span></button>
+<button data-src='outputs/t4_numeric/large-fp8wo.wav' aria-pressed='false'>8. large-fp8wo<span class='t'>1.30s</span></button>
+<button data-src='outputs/t4_numeric/large-fp8dyn.wav' aria-pressed='false'>9. large-fp8dyn<span class='t'>1.94s</span></button>
+<button data-src='outputs/t4_numeric/small-mf-bf16.wav' aria-pressed='false'>10. small-mf-bf16<span class='t'>0.11s</span></button>
+<button data-src='outputs/t4_numeric/small-mf-fp32.wav' aria-pressed='false'>11. small-mf-fp32<span class='t'>0.15s</span></button>
+</div>
+<p class='hint'>このブロックをクリックしてから <kbd>1</kbd>〜<kbd>9</kbd> でも切り替え可</p>
+</section>
+<section data-text='t5_kanji'><h2>t5_kanji</h2>
+<p class='txt'>相殺された代替案を巡り、早急な対応が必要だと言われても、施行日までに貼付する書類の続柄を更迭するのは困難を極めた。</p>
+<audio controls preload='metadata' src='outputs/t5_kanji/small-v4.1-bf16.wav'></audio>
+<div class='btns'>
+<button data-src='outputs/t5_kanji/small-v4.1-bf16.wav' aria-pressed='true'>1. small-v4.1-bf16<span class='t'>0.30s</span></button>
+<button data-src='outputs/t5_kanji/small-v4.1-fp32.wav' aria-pressed='false'>2. small-v4.1-fp32<span class='t'>0.56s</span></button>
+<button data-src='outputs/t5_kanji/large-bf16.wav' aria-pressed='false'>3. large-bf16<span class='t'>0.70s</span></button>
+<button data-src='outputs/t5_kanji/large-fp32.wav' aria-pressed='false'>4. large-fp32<span class='t'>1.53s</span></button>
+<button data-src='outputs/t5_kanji/large-int8wo.wav' aria-pressed='false'>5. large-int8wo<span class='t'>0.86s</span></button>
+<button data-src='outputs/t5_kanji/large-int8dyn.wav' aria-pressed='false'>6. large-int8dyn<span class='t'>5.53s</span></button>
+<button data-src='outputs/t5_kanji/large-int4wo.wav' aria-pressed='false'>7. large-int4wo<span class='t'>1.94s</span></button>
+<button data-src='outputs/t5_kanji/large-fp8wo.wav' aria-pressed='false'>8. large-fp8wo<span class='t'>1.12s</span></button>
+<button data-src='outputs/t5_kanji/large-fp8dyn.wav' aria-pressed='false'>9. large-fp8dyn<span class='t'>1.93s</span></button>
+<button data-src='outputs/t5_kanji/small-mf-bf16.wav' aria-pressed='false'>10. small-mf-bf16<span class='t'>0.10s</span></button>
+<button data-src='outputs/t5_kanji/small-mf-fp32.wav' aria-pressed='false'>11. small-mf-fp32<span class='t'>0.13s</span></button>
+</div>
+<p class='hint'>このブロックをクリックしてから <kbd>1</kbd>〜<kbd>9</kbd> でも切り替え可</p>
+</section>
+<section data-text='t6_emotion'><h2>t6_emotion</h2>
+<p class='txt'>えっ、本当ですか！？😊 それはすごい、おめでとうございます。ずっと頑張ってきた甲斐がありましたね。</p>
+<audio controls preload='metadata' src='outputs/t6_emotion/small-v4.1-bf16.wav'></audio>
+<div class='btns'>
+<button data-src='outputs/t6_emotion/small-v4.1-bf16.wav' aria-pressed='true'>1. small-v4.1-bf16<span class='t'>0.28s</span></button>
+<button data-src='outputs/t6_emotion/small-v4.1-fp32.wav' aria-pressed='false'>2. small-v4.1-fp32<span class='t'>0.49s</span></button>
+<button data-src='outputs/t6_emotion/large-bf16.wav' aria-pressed='false'>3. large-bf16<span class='t'>0.61s</span></button>
+<button data-src='outputs/t6_emotion/large-fp32.wav' aria-pressed='false'>4. large-fp32<span class='t'>1.36s</span></button>
+<button data-src='outputs/t6_emotion/large-int8wo.wav' aria-pressed='false'>5. large-int8wo<span class='t'>0.76s</span></button>
+<button data-src='outputs/t6_emotion/large-int8dyn.wav' aria-pressed='false'>6. large-int8dyn<span class='t'>5.50s</span></button>
+<button data-src='outputs/t6_emotion/large-int4wo.wav' aria-pressed='false'>7. large-int4wo<span class='t'>1.46s</span></button>
+<button data-src='outputs/t6_emotion/large-fp8wo.wav' aria-pressed='false'>8. large-fp8wo<span class='t'>1.02s</span></button>
+<button data-src='outputs/t6_emotion/large-fp8dyn.wav' aria-pressed='false'>9. large-fp8dyn<span class='t'>1.91s</span></button>
+<button data-src='outputs/t6_emotion/small-mf-bf16.wav' aria-pressed='false'>10. small-mf-bf16<span class='t'>0.09s</span></button>
+<button data-src='outputs/t6_emotion/small-mf-fp32.wav' aria-pressed='false'>11. small-mf-fp32<span class='t'>0.12s</span></button>
+</div>
+<p class='hint'>このブロックをクリックしてから <kbd>1</kbd>〜<kbd>9</kbd> でも切り替え可</p>
+</section>
+</div><script>
+document.querySelectorAll('section[data-text]').forEach(sec=>{
+  const player=sec.querySelector('audio');
+  const btns=[...sec.querySelectorAll('button[data-src]')];
+  const pick=(btn)=>{
+    const t=player.currentTime, playing=!player.paused;
+    btns.forEach(b=>b.setAttribute('aria-pressed', String(b===btn)));
+    player.src=btn.dataset.src;
+    // 再生位置を維持したまま差し替えて A/B する
+    player.addEventListener('loadedmetadata',()=>{
+      player.currentTime=Math.min(t, Math.max(0,player.duration-0.05));
+      if(playing) player.play();
+    },{once:true});
+    player.load();
+  };
+  btns.forEach(b=>b.addEventListener('click',()=>pick(b)));
+  sec.addEventListener('keydown',e=>{
+    const i=parseInt(e.key,10);
+    if(i>=1&&i<=btns.length){ pick(btns[i-1]); e.preventDefault(); }
+  });
+  sec.tabIndex=0;
+});
+</script></body></html>
