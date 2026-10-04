@@ -4,6 +4,7 @@ import gc
 import hashlib
 import json
 import math
+import os
 import secrets
 import threading
 import time
@@ -274,12 +275,20 @@ def _maybe_compile_inference_model(
         return model
     if not hasattr(torch, "compile"):
         raise RuntimeError("compile_model=True requires torch.compile (PyTorch 2+).")
-    compile_kwargs = {"dynamic": bool(dynamic)}
+    compile_kwargs: dict[str, object] = {"dynamic": bool(dynamic)}
+    # IRODORI_COMPILE_MODE=max-autotune / reduce-overhead / max-autotune-no-cudagraphs
+    # overrides the default mode for the per-step model call only. The condition encode
+    # and KV-cache builders stay on the default mode because their outputs are reused
+    # across sampling steps, which CUDA Graphs memory pools reject.
+    compile_mode = os.environ.get("IRODORI_COMPILE_MODE", "").strip()
+    step_kwargs = dict(compile_kwargs)
+    if compile_mode:
+        step_kwargs["mode"] = compile_mode
     model.encode_conditions = torch.compile(model.encode_conditions, **compile_kwargs)
     model.build_context_kv_cache = torch.compile(model.build_context_kv_cache, **compile_kwargs)
     model.forward_with_encoded_conditions = torch.compile(
         model.forward_with_encoded_conditions,
-        **compile_kwargs,
+        **step_kwargs,
     )
     return model
 
