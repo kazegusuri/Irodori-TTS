@@ -9,7 +9,6 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint as _torch_checkpoint
 
 from .attention import (
-    ContextAttentionPlan,
     build_context_attention_plan,
     context_attention,
     masked_sdpa,
@@ -655,7 +654,10 @@ class TextEncoder(nn.Module):
         cache = self._freqs_cis_cache
         if cache.device != device or cache.shape[0] < seq_len:
             cache = precompute_freqs_cis(self.head_dim, seq_len).to(device)
-            self._freqs_cis_cache = cache
+            if not torch.compiler.is_compiling():
+                # Caching a graph-captured tensor makes the next CUDA Graphs replay
+                # overwrite it, so skip the store while tracing and recompute instead.
+                self._freqs_cis_cache = cache
         return cache[:seq_len]
 
     def forward(self, input_ids: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -908,7 +910,10 @@ class ReferenceLatentEncoder(nn.Module):
         cache = self._freqs_cis_cache
         if cache.device != device or cache.shape[0] < seq_len:
             cache = precompute_freqs_cis(self.head_dim, seq_len).to(device)
-            self._freqs_cis_cache = cache
+            if not torch.compiler.is_compiling():
+                # Caching a graph-captured tensor makes the next CUDA Graphs replay
+                # overwrite it, so skip the store while tracing and recompute instead.
+                self._freqs_cis_cache = cache
         return cache[:seq_len]
 
     def forward(self, latent: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -1652,7 +1657,10 @@ class TextToLatentRFDiT(nn.Module):
         cache = self._freqs_cis_cache
         if cache.device != device or cache.shape[0] < seq_len:
             cache = precompute_freqs_cis(self.head_dim, seq_len).to(device)
-            self._freqs_cis_cache = cache
+            if not torch.compiler.is_compiling():
+                # Caching a graph-captured tensor makes the next CUDA Graphs replay
+                # overwrite it, so skip the store while tracing and recompute instead.
+                self._freqs_cis_cache = cache
         return cache[:seq_len]
 
     @staticmethod
