@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint as _torch_checkpoint
 
 from .attention import (
+    ContextAttentionPlan,
     build_context_attention_plan,
     context_attention,
     masked_sdpa,
@@ -1882,6 +1883,56 @@ class TextToLatentRFDiT(nn.Module):
             caption_state = self.caption_norm(caption_state)
         return text_state, text_mask, ref_state, ref_mask, caption_state, caption_mask
 
+    def build_context_plan(
+        self,
+        *,
+        batch: int,
+        query_len: int,
+        device: torch.device,
+        attention_dtype: torch.dtype,
+        text_state: torch.Tensor,
+        text_mask: torch.Tensor,
+        speaker_state: torch.Tensor | None,
+        speaker_mask: torch.Tensor | None,
+        caption_state: torch.Tensor | None = None,
+        caption_mask: torch.Tensor | None = None,
+        latent_mask: torch.Tensor | None = None,
+    ) -> ContextAttentionPlan | None:
+        """Build the shared context-attention plan.
+
+        The concatenated context mask is identical for every block and, during
+        sampling, for every timestep: only ``x_t`` and ``t`` change. Building it
+        costs a device sync (``pack_index``), so samplers should build it once per
+        conditioning bundle and pass it back in through ``context_plan``.
+        """
+        if len(self.blocks) == 0:
+            return None
+        attn0 = self.blocks[0].attention
+        return build_context_attention_plan(
+            attn0.build_context_masks(
+                batch=int(batch),
+                query_len=int(query_len),
+                device=device,
+                self_mask=latent_mask,
+                text_len=text_state.shape[1],
+                text_mask=text_mask,
+                speaker_len=(
+                    speaker_state.shape[1]
+                    if attn0.has_speaker_condition and speaker_state is not None
+                    else None
+                ),
+                speaker_mask=speaker_mask if attn0.has_speaker_condition else None,
+                caption_len=(
+                    caption_state.shape[1]
+                    if attn0.has_caption_condition and caption_state is not None
+                    else None
+                ),
+                caption_mask=caption_mask if attn0.has_caption_condition else None,
+            ),
+            query_len=int(query_len),
+            attention_dtype=attention_dtype,
+        )
+
     def forward_with_encoded_conditions(
         self,
         x_t: torch.Tensor,
@@ -1895,6 +1946,7 @@ class TextToLatentRFDiT(nn.Module):
         latent_mask: torch.Tensor | None = None,
         context_kv_cache: list[tuple[torch.Tensor, ...]] | None = None,
         delta_t: torch.Tensor | None = None,
+        context_plan: ContextAttentionPlan | None = None,
     ) -> torch.Tensor:
         t_embed = get_timestep_embedding(t, self.cfg.timestep_embed_dim).to(dtype=x_t.dtype)
         cond_embed = self.cond_module(t_embed)
@@ -1915,35 +1967,19 @@ class TextToLatentRFDiT(nn.Module):
 
         x = self.in_proj(x_t)
         freqs = self._rope_freqs(x.shape[1], x.device)
-        context_plan = None
-        if len(self.blocks) > 0:
-            # The concatenated context mask is identical for every block; build
-            # the attention plan once (its packing step requires a device sync)
-            # and share it across blocks and checkpoint recomputation.
-            attn0 = self.blocks[0].attention
-            context_plan = build_context_attention_plan(
-                attn0.build_context_masks(
-                    batch=x.shape[0],
-                    query_len=x.shape[1],
-                    device=x.device,
-                    self_mask=latent_mask,
-                    text_len=text_state.shape[1],
-                    text_mask=text_mask,
-                    speaker_len=(
-                        speaker_state.shape[1]
-                        if attn0.has_speaker_condition and speaker_state is not None
-                        else None
-                    ),
-                    speaker_mask=speaker_mask if attn0.has_speaker_condition else None,
-                    caption_len=(
-                        caption_state.shape[1]
-                        if attn0.has_caption_condition and caption_state is not None
-                        else None
-                    ),
-                    caption_mask=caption_mask if attn0.has_caption_condition else None,
-                ),
+        if context_plan is None and len(self.blocks) > 0:
+            context_plan = self.build_context_plan(
+                batch=x.shape[0],
                 query_len=x.shape[1],
+                device=x.device,
                 attention_dtype=x.dtype,
+                text_state=text_state,
+                text_mask=text_mask,
+                speaker_state=speaker_state,
+                speaker_mask=speaker_mask,
+                caption_state=caption_state,
+                caption_mask=caption_mask,
+                latent_mask=latent_mask,
             )
         use_checkpoint = self.gradient_checkpointing and self.training and context_kv_cache is None
         store_every = max(0, int(self.gradient_checkpointing_store_every))

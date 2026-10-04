@@ -206,6 +206,9 @@ def sample_euler_rf_cfg(
     t_schedule = (1.0 - u) * init_scale
     if not bool(torch.all(t_schedule[:-1] > t_schedule[1:]).item()):
         raise ValueError("t_schedule must be strictly decreasing; adjust num_steps or sway_coeff.")
+    # Host-side copy of the schedule: the CFG window test below would otherwise
+    # call .item() on a device tensor once per step, syncing 40 times per request.
+    t_schedule_host = [float(v) for v in t_schedule.tolist()]
     use_independent_cfg = cfg_guidance_mode == "independent"
     use_joint_cfg = cfg_guidance_mode == "joint"
     use_alternating_cfg = cfg_guidance_mode == "alternating"
@@ -456,12 +459,37 @@ def sample_euler_rf_cfg(
             )
     speaker_kv_active = speaker_kv_scale is not None
 
+    # The context-attention plan only depends on the conditioning masks and the
+    # latent length, so it is constant across timesteps. Building it costs a
+    # device sync, so memoize one plan per conditioning bundle instead of
+    # rebuilding it inside every one of the num_steps model calls.
+    plan_cache: dict[str, object] = {}
+
+    def _plan(tag, *, batch, text_state_, text_mask_, speaker_state_, speaker_mask_,
+              caption_state_, caption_mask_):
+        plan = plan_cache.get(tag)
+        if plan is None:
+            plan = model.build_context_plan(
+                batch=batch,
+                query_len=x_t.shape[1],
+                device=device,
+                attention_dtype=dtype,
+                text_state=text_state_,
+                text_mask=text_mask_,
+                speaker_state=speaker_state_,
+                speaker_mask=speaker_mask_,
+                caption_state=caption_state_,
+                caption_mask=caption_mask_,
+            )
+            plan_cache[tag] = plan
+        return plan
+
     for i in range(num_steps):
         t = t_schedule[i]
         t_next = t_schedule[i + 1]
         tt = torch.full((batch_size,), t, device=device, dtype=dtype)
 
-        use_cfg = bool(enabled_cfg_names) and (cfg_min_t <= t.item() <= cfg_max_t)
+        use_cfg = bool(enabled_cfg_names) and (cfg_min_t <= t_schedule_host[i] <= cfg_max_t)
         if use_cfg:
             if use_independent_cfg:
                 x_t_cfg = torch.cat([x_t] * cfg_batch_mult, dim=0).to(dtype)
@@ -476,6 +504,16 @@ def sample_euler_rf_cfg(
                     caption_state=independent_caption_state,
                     caption_mask=independent_caption_mask,
                     context_kv_cache=context_kv_cfg,
+                    context_plan=_plan(
+                        "independent",
+                        batch=x_t_cfg.shape[0],
+                        text_state_=independent_text_state,
+                        text_mask_=independent_text_mask,
+                        speaker_state_=independent_speaker_state,
+                        speaker_mask_=independent_speaker_mask,
+                        caption_state_=independent_caption_state,
+                        caption_mask_=independent_caption_mask,
+                    ),
                 )
                 chunks = v_out.chunk(cfg_batch_mult, dim=0)
                 v = chunks[0]
@@ -492,6 +530,16 @@ def sample_euler_rf_cfg(
                     caption_state=caption_state_cond,
                     caption_mask=caption_mask_cond,
                     context_kv_cache=context_kv_cond,
+                    context_plan=_plan(
+                        "cond",
+                        batch=x_t.shape[0],
+                        text_state_=text_state_cond,
+                        text_mask_=text_mask_cond,
+                        speaker_state_=speaker_state_cond,
+                        speaker_mask_=speaker_mask_cond,
+                        caption_state_=caption_state_cond,
+                        caption_mask_=caption_mask_cond,
+                    ),
                 )
                 if use_joint_cfg:
                     if len(enabled_cfg_names) > 1:
@@ -542,6 +590,16 @@ def sample_euler_rf_cfg(
                 caption_state=caption_state_cond,
                 caption_mask=caption_mask_cond,
                 context_kv_cache=context_kv_cond,
+                context_plan=_plan(
+                    "cond",
+                    batch=x_t.shape[0],
+                    text_state_=text_state_cond,
+                    text_mask_=text_mask_cond,
+                    speaker_state_=speaker_state_cond,
+                    speaker_mask_=speaker_mask_cond,
+                    caption_state_=caption_state_cond,
+                    caption_mask_=caption_mask_cond,
+                ),
             )
 
         if rescale_k is not None and rescale_sigma is not None:
