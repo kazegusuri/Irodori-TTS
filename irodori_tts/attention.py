@@ -20,15 +20,28 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
+_FA_IMPL: str | None = None
 try:  # optional dependency: flash_attn_3 prebuilt wheel installs this module
     from flash_attn_interface import flash_attn_varlen_func as _fa3_varlen_func
+
+    _FA_IMPL = "fa3"
 except Exception:  # pragma: no cover - flash_attn_3 not installed
-    _fa3_varlen_func = None
+    try:
+        # FlashAttention-4 (CuTeDSL). Unlike FA3 it ships sm_120 kernels, so this
+        # is the usable path on consumer Blackwell (e.g. RTX 5090). The varlen
+        # keyword names match FA3, but its 4th positional argument is ``qv``,
+        # so _fa3() must pass cu_seqlens/max_seqlen by keyword.
+        from flash_attn.cute import flash_attn_varlen_func as _fa3_varlen_func
+
+        _FA_IMPL = "fa4"
+    except Exception:  # pragma: no cover - neither FA3 nor FA4 installed
+        _fa3_varlen_func = None
 
 # cuDNN handles bool-masked SDPA well on Ampere+; keep the standard fallbacks
 # behind it for shapes/dtypes it rejects.
@@ -93,15 +106,65 @@ def effective_attention_dtype(x: torch.Tensor) -> torch.dtype:
     return x.dtype
 
 
+if _FA_IMPL == "fa4":
+    # FA4 is a CuTeDSL custom op whose output is not allocated by torch, which makes
+    # inductor's CUDA Graphs bookkeeping reject it ("storage data ptrs are not
+    # allocated in pool"). Wrapping it in a torch custom op with a fake kernel and
+    # copying the result into a torch-owned buffer keeps the FA4 tensor out of
+    # inductor's hands; under graph capture the clone lands in the graph's pool.
+    @torch.library.custom_op("irodori::fa4_varlen", mutates_args=())
+    def _fa4_varlen_op(
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        cu_q: torch.Tensor,
+        cu_k: torch.Tensor,
+        max_q: int,
+        max_k: int,
+        seqused_q: Optional[torch.Tensor] = None,
+        seqused_k: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        out = _fa3_varlen_func(
+            q,
+            k,
+            v,
+            cu_seqlens_q=cu_q,
+            cu_seqlens_k=cu_k,
+            max_seqlen_q=max_q,
+            max_seqlen_k=max_k,
+            seqused_q=seqused_q,
+            seqused_k=seqused_k,
+        )
+        if isinstance(out, tuple):
+            out = out[0]
+        return out.clone()
+
+    @_fa4_varlen_op.register_fake
+    def _(q, k, v, cu_q, cu_k, max_q, max_k, seqused_q=None, seqused_k=None):
+        return torch.empty_like(q)
+else:
+    _fa4_varlen_op = None
+
+
 def _fa3(q, k, v, cu_q, cu_k, max_q, max_k, *, seqused_q=None, seqused_k=None):
+    if (
+        _fa4_varlen_op is not None
+        and torch.compiler.is_compiling()
+        and not torch.is_grad_enabled()
+    ):
+        # Inference only: the custom op registers no autograd formula, and eager
+        # should not pay for the extra clone.
+        return _fa4_varlen_op(
+            q, k, v, cu_q, cu_k, int(max_q), int(max_k), seqused_q, seqused_k
+        )
     out = _fa3_varlen_func(
         q,
         k,
         v,
-        cu_q,
-        cu_k,
-        max_q,
-        max_k,
+        cu_seqlens_q=cu_q,
+        cu_seqlens_k=cu_k,
+        max_seqlen_q=max_q,
+        max_seqlen_k=max_k,
         seqused_q=seqused_q,
         seqused_k=seqused_k,
     )
