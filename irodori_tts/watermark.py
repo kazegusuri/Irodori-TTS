@@ -33,9 +33,13 @@ class SilentCipherWatermarker:
     def _load_backend(*, device: str, model_type: str):
         try:
             import silentcipher
-        except ImportError:
+        except Exception as exc:
+            # Not just ImportError: silentcipher imports torchaudio at module scope, which
+            # raises RuntimeError when torch and torchaudio disagree on the CUDA version.
             logger.warning(
-                "SilentCipher package is unavailable; generated audio will not be watermarked."
+                "SilentCipher package is unavailable (%s); generated audio will not be "
+                "watermarked.",
+                exc,
             )
             return None
 

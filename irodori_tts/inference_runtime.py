@@ -14,7 +14,13 @@ from pathlib import Path
 from typing import Any
 
 import torch
-import torchaudio
+
+try:
+    import torchaudio
+except Exception:  # ImportError, or RuntimeError on a CUDA-version mismatch
+    # torchaudio development stopped at 2.11, so newer torch builds (e.g. 2.14+cu132)
+    # ship without it. The soundfile paths below cover everything we need.
+    torchaudio = None
 from safetensors import safe_open
 from safetensors.torch import load_file as load_safetensors_file
 
@@ -1547,8 +1553,10 @@ def clear_cached_runtime() -> None:
 
 def _load_audio(path: str | Path) -> tuple[torch.Tensor, int]:
     try:
+        if torchaudio is None:
+            raise RuntimeError("torchaudio unavailable")
         return torchaudio.load(str(path))
-    except RuntimeError:
+    except (RuntimeError, ImportError):
         import soundfile as sf
 
         data, sr = sf.read(str(path), dtype="float32")
@@ -1565,8 +1573,10 @@ def save_wav(path: str | Path, audio: torch.Tensor, sample_rate: int) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     audio_cpu = audio.detach().to(device="cpu", dtype=torch.float32)
     try:
+        if torchaudio is None:
+            raise RuntimeError("torchaudio unavailable")
         torchaudio.save(str(out_path), audio_cpu, sample_rate)
-    except RuntimeError:
+    except (RuntimeError, ImportError):
         import soundfile as sf
 
         audio_np = audio_cpu.squeeze(0).numpy() if audio_cpu.shape[0] == 1 else audio_cpu.T.numpy()

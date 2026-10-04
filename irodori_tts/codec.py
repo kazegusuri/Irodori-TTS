@@ -4,8 +4,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy
 import torch
-import torchaudio
+try:
+    import torchaudio
+except Exception:  # see inference_runtime: torchaudio is optional on torch>=2.12
+    torchaudio = None
 from huggingface_hub import hf_hub_download
 
 _CODEC_DEFAULT = object()
@@ -32,6 +36,23 @@ def unpatchify_latent(patched: torch.Tensor, patch_size: int, latent_dim: int) -
     if patch_size <= 1:
         return patched
     return patched.reshape(patched.shape[0], patched.shape[1] * patch_size, latent_dim)
+
+
+def _resample(waveform: torch.Tensor, orig_sr: int, target_sr: int) -> torch.Tensor:
+    """Resample (B, 1, T) audio, preferring torchaudio and falling back to soxr."""
+    if torchaudio is not None:
+        return torchaudio.functional.resample(waveform, orig_sr, target_sr)
+    try:
+        import soxr
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError(
+            "Resampling requires torchaudio or soxr; install one of them "
+            f"to feed {orig_sr} Hz audio to this {target_sr} Hz codec."
+        ) from exc
+    flat = waveform.reshape(-1, waveform.shape[-1]).to("cpu", torch.float32)
+    out = [soxr.resample(row.numpy(), orig_sr, target_sr) for row in flat]
+    stacked = torch.from_numpy(numpy.stack(out))
+    return stacked.reshape(*waveform.shape[:-1], -1).to(waveform.device, waveform.dtype)
 
 
 @dataclass
@@ -198,7 +219,7 @@ class DACVAECodec:
         if waveform.shape[1] != 1:
             waveform = waveform.mean(dim=1, keepdim=True)
         if sample_rate != self.sample_rate:
-            waveform = torchaudio.functional.resample(waveform, sample_rate, self.sample_rate)
+            waveform = _resample(waveform, sample_rate, self.sample_rate)
 
         if normalize_db is _CODEC_DEFAULT:
             effective_normalize_db = self.normalize_db
@@ -268,8 +289,10 @@ class DACVAECodec:
 
     def encode_file(self, path: str | Path) -> torch.Tensor:
         try:
+            if torchaudio is None:
+                raise RuntimeError("torchaudio unavailable")
             wav, sr = torchaudio.load(str(path))
-        except RuntimeError:
+        except (RuntimeError, ImportError):
             import soundfile as sf
 
             data, sr = sf.read(str(path), dtype="float32")
