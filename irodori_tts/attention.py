@@ -14,6 +14,13 @@ padding). The FA3 ``seqused`` paths rely on that invariant; callers must not
 pass masks with holes.
 
 Set ``IRODORI_ATTENTION_BACKEND=sdpa`` to disable the FA3 paths at runtime.
+
+Set ``IRODORI_SDPA_PRIORITY=efficient,cudnn,math`` to put memory-efficient
+attention ahead of cuDNN. cuDNN builds an execution plan for every new
+sequence length, which made the first request at each output length about
+0.8-1.0s slower for v4-Large on an RTX 5070 Ti. A server sees a new length
+on almost every request, so there the efficient-first order removed that
+cost and was within 3% of cuDNN once both were warm.
 """
 
 from __future__ import annotations
@@ -45,11 +52,37 @@ except Exception:  # pragma: no cover - flash_attn_3 not installed
 
 # cuDNN handles bool-masked SDPA well on Ampere+; keep the standard fallbacks
 # behind it for shapes/dtypes it rejects.
-_SDPA_PRIORITY = [
+_DEFAULT_SDPA_PRIORITY = [
     SDPBackend.CUDNN_ATTENTION,
     SDPBackend.EFFICIENT_ATTENTION,
     SDPBackend.MATH,
 ]
+_SDPA_BACKENDS = {
+    "cudnn": SDPBackend.CUDNN_ATTENTION,
+    "efficient": SDPBackend.EFFICIENT_ATTENTION,
+    "math": SDPBackend.MATH,
+}
+
+
+def _sdpa_priority_from_env() -> list[SDPBackend]:
+    """Read ``IRODORI_SDPA_PRIORITY`` (e.g. ``efficient,cudnn,math``).
+
+    Read once at import: os.environ inside a compiled region breaks the graph.
+    """
+    raw = os.environ.get("IRODORI_SDPA_PRIORITY", "").strip().lower()
+    if not raw:
+        return _DEFAULT_SDPA_PRIORITY
+    names = [name.strip() for name in raw.split(",") if name.strip()]
+    unknown = [name for name in names if name not in _SDPA_BACKENDS]
+    if unknown:
+        raise ValueError(
+            f"IRODORI_SDPA_PRIORITY has unknown backends {unknown}; "
+            f"choose from {sorted(_SDPA_BACKENDS)}"
+        )
+    return [_SDPA_BACKENDS[name] for name in names]
+
+
+_SDPA_PRIORITY = _sdpa_priority_from_env()
 
 _FA3_MIN_COMPUTE_CAPABILITY = 9
 _FA3_DTYPES = (torch.float16, torch.bfloat16)
