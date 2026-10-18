@@ -3,9 +3,8 @@
 Boolean key-padding masks make ``F.scaled_dot_product_attention`` ineligible for
 the FlashAttention backend, so masked attention silently falls back to slower
 kernels. This module routes masked attention to FlashAttention-3 varlen kernels
-when available (Hopper+, fp16/bf16) and otherwise to SDPA with a cuDNN-first
-backend priority, which is markedly faster than the default dispatch for
-bool-masked inputs.
+when available (Hopper+, fp16/bf16) and otherwise to SDPA with an explicit
+backend priority: memory-efficient attention, then cuDNN, then math.
 
 All helpers take tensors in (B, S, H, D) layout.
 
@@ -15,12 +14,13 @@ pass masks with holes.
 
 Set ``IRODORI_ATTENTION_BACKEND=sdpa`` to disable the FA3 paths at runtime.
 
-Set ``IRODORI_SDPA_PRIORITY=efficient,cudnn,math`` to put memory-efficient
-attention ahead of cuDNN. cuDNN builds an execution plan for every new
-sequence length, which made the first request at each output length about
-0.8-1.0s slower for v4-Large on an RTX 5070 Ti. A server sees a new length
-on almost every request, so there the efficient-first order removed that
-cost and was within 3% of cuDNN once both were warm.
+Memory-efficient attention comes before cuDNN because cuDNN builds an
+execution plan for every new sequence length. For v4-Large (bf16, 40 steps)
+that made the first request at each output length 0.6-0.7s slower on an
+RTX 5090 and 0.8-1.0s slower on an RTX 5070 Ti, and a TTS server sees a new
+length on almost every request. Once warm, the two orders were within 5% of
+each other on both GPUs. Set ``IRODORI_SDPA_PRIORITY=cudnn,efficient,math``
+to put cuDNN first again.
 """
 
 from __future__ import annotations
@@ -50,11 +50,11 @@ except Exception:  # pragma: no cover - flash_attn_3 not installed
     except Exception:  # pragma: no cover - neither FA3 nor FA4 installed
         _fa3_varlen_func = None
 
-# cuDNN handles bool-masked SDPA well on Ampere+; keep the standard fallbacks
+# Memory-efficient first (see the module docstring); cuDNN and math stay
 # behind it for shapes/dtypes it rejects.
 _DEFAULT_SDPA_PRIORITY = [
-    SDPBackend.CUDNN_ATTENTION,
     SDPBackend.EFFICIENT_ATTENTION,
+    SDPBackend.CUDNN_ATTENTION,
     SDPBackend.MATH,
 ]
 _SDPA_BACKENDS = {
