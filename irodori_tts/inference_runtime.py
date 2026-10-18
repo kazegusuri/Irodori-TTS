@@ -299,22 +299,21 @@ def _move_inference_module(
     device: torch.device,
     dtype: torch.dtype,
 ) -> torch.nn.Module:
-    module.to(device=device)
+    # Cast before moving. Moving first puts the whole module on the device in
+    # its stored dtype: v4-Large is stored in fp32, so loading it in bf16 peaked
+    # above 12GB on the GPU before shrinking to ~7.5GB, and ran out of memory on
+    # a 16GB RTX 5070 Ti that also hosts another model.
     with torch.no_grad():
         for param in module.parameters():
             if param.is_floating_point() and param.dtype != dtype:
-                param.data = param.data.to(device=device, dtype=dtype)
+                param.data = param.data.to(dtype=dtype)
                 if param.grad is not None:
-                    param.grad.data = param.grad.data.to(device=device, dtype=dtype)
+                    param.grad.data = param.grad.data.to(dtype=dtype)
         for child in module.modules():
             for name, buffer in child._buffers.items():
-                if buffer is None:
-                    continue
-                if buffer.is_floating_point() and buffer.dtype != dtype:
-                    child._buffers[name] = buffer.to(device=device, dtype=dtype)
-                elif buffer.device != device:
-                    child._buffers[name] = buffer.to(device=device)
-    return module
+                if buffer is not None and buffer.is_floating_point() and buffer.dtype != dtype:
+                    child._buffers[name] = buffer.to(dtype=dtype)
+    return module.to(device=device)
 
 
 def resolve_runtime_dtype(*, precision: str, device: torch.device) -> torch.dtype:
@@ -669,7 +668,6 @@ class InferenceRuntime:
             model_state,
             assign=model_cfg.use_pretrained_text_encoder or quantized_model,
         )
-        model = model.to(model_device)
         model = _move_inference_module(model, device=model_device, dtype=model_dtype)
         model.eval()
         model = _maybe_compile_inference_model(
